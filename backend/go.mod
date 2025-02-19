@@ -15,6 +15,7 @@ require (
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/enenisme/definger v0.0.0-20250212082013-b8fe7e885498 // indirect
+	github.com/enenisme/hostalive v0.0.0-20250217030553-522bfae02cdd // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
 	github.com/gin-gonic/gin v1.10.0 // indirect

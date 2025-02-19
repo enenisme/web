@@ -103,7 +103,7 @@ func (h *FingerprintHandler) HandleFingerprintScan(c *gin.Context) {
 
 func (h *FingerprintHandler) processFingerprintScan(targets []string) []string {
 	df := definger.NewDefinger(targets[0])
-	result, err := df.Definger("C:\\Users\\张裕波\\Desktop\\project\\WEB-dev\\backend\\rule.json")
+	result, err := df.Definger("C:\\Users\\张裕波\\Desktop\\project\\WEB\\backend\\rule.json")
 	if err != nil {
 		fmt.Println(err)
 		return nil

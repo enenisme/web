@@ -29,7 +29,7 @@ func SetupRoutes(r *gin.Engine) {
 		apiGroup.POST("/fingerprint/scan", fingerprintHandler.HandleFingerprintScan)
 
 		// 主机存活检测相关路由
-		apiGroup.POST("/host/check", hostAliveHandler.HandleHostAliveCheck)
+		apiGroup.POST("/host/alive", hostAliveHandler.HandleHostAliveCheck)
 
 		// 端口扫描相关路由
 		apiGroup.POST("/port/scan", portScanHandler.HandlePortScan)

@@ -15,6 +15,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/enenisme/definger v0.0.0-20250212082013-b8fe7e885498 h1:RSxHzBQO6bLzsbAkjx6NNvYgEzXjcjtBdYun6nYm+xc=
 github.com/enenisme/definger v0.0.0-20250212082013-b8fe7e885498/go.mod h1:4k5ipLN+xMpL5uxHhfDBGuMgGFwExiX+7SJ5a8e9RQU=
+github.com/enenisme/hostalive v0.0.0-20250217030553-522bfae02cdd h1:kvQ1LUO9DsN6rZedsrstlWIumSxTTkVuKhCOoYIzXJM=
+github.com/enenisme/hostalive v0.0.0-20250217030553-522bfae02cdd/go.mod h1:jV8YLdhrry58KR4LxcA+EHfk0S00q+osBMWuKE4jalI=
 github.com/gabriel-vasile/mimetype v1.4.8 h1:FfZ3gj38NjllZIeJAmMhr+qKL8Wu+nOoI3GqacKw1NM=
 github.com/gabriel-vasile/mimetype v1.4.8/go.mod h1:ByKUIKGjh1ODkGM1asKUbQZOLGrPjydw3hYPU2YU9t8=
 github.com/gin-contrib/sse v1.0.0 h1:y3bT1mUWUxDpW4JLQg/HnTqV4rozuW4tC9eFKTxYI9E=

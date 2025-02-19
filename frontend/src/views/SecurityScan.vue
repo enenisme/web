@@ -179,12 +179,13 @@
               <el-form-item class="form-actions">
                 <el-button 
                   type="primary" 
-                  :loading="scanning"
-                  @click="startScan"
+                  @click="startScan" 
+                  :loading="loading"
+                  :disabled="loading"
                   size="large"
                 >
                   <el-icon><VideoPlay /></el-icon>
-                  {{ scanning ? '扫描中...' : '开始扫描' }}
+                  {{ loading ? '扫描中...' : '开始扫描' }}
                 </el-button>
                 <el-button 
                   @click="resetForm"
@@ -201,7 +202,7 @@
           <el-card v-if="scanResults.length > 0" class="result-card">
             <template #header>
               <div class="card-header">
-                <span>扫描结果</span>
+                <span>扫描结果 (共 {{ total }} 条)</span>
                 <el-button-group>
                   <el-button size="small" @click="exportResults">导出</el-button>
                   <el-button size="small" @click="saveToDatabase">保存</el-button>
@@ -209,17 +210,36 @@
               </div>
             </template>
             
-            <el-table :data="scanResults" style="width: 100%">
-              <el-table-column prop="item" label="项目" />
-              <el-table-column prop="details" label="详情" />
-              <el-table-column prop="status" label="状态">
-                <template #default="{ row }">
-                  <el-tag :type="getResultStatusType(row.status)">
-                    {{ row.status }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
+            <div v-if="loading" class="loading-container">
+              <el-skeleton :rows="5" animated />
+            </div>
+            
+            <template v-else>
+              <el-table :data="paginatedResults" style="width: 100%">
+                <el-table-column prop="item" label="项目" />
+                <el-table-column prop="details" label="详情" />
+                <el-table-column prop="status" label="状态">
+                  <template #default="{ row }">
+                    <el-tag :type="getResultStatusType(row.status)">
+                      {{ row.status }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <div class="pagination-container">
+                <el-pagination
+                  v-model:current-page="currentPage"
+                  v-model:page-size="pageSize"
+                  :page-sizes="[10, 20, 50, 100]"
+                  :total="total"
+                  layout="total, sizes, prev, pager, next, jumper"
+                  @size-change="handleSizeChange"
+                  @current-change="handlePageChange"
+                  :hide-on-single-page="false"
+                />
+              </div>
+            </template>
           </el-card>
 
           <!-- 历史记录展示 -->
@@ -292,6 +312,20 @@ const scanResults = ref([])
 const searchQuery = ref('')
 const fileList = ref([])
 
+// 添加分页相关的响应式变量
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+// 添加计算属性获取分页后的数据
+const paginatedResults = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return scanResults.value.slice(start, end)
+})
+
+// 添加总数计算属性
+const total = computed(() => scanResults.value.length)
+
 const form = ref({
   target: '',
   mode: 'normal',
@@ -305,6 +339,9 @@ const form = ref({
   multipleTargets: '',
   fileUrls: []
 })
+
+// 添加 loading 状态变量
+const loading = ref(false)
 
 // 模拟历史数据
 const historyData = ref([
@@ -361,32 +398,71 @@ const handleModuleChange = (index) => {
   resetForm()
 }
 
-const startScan = () => {
-  scanning.value = true
-  
-  if (form.value.inputType === 'url') {
-    // 处理单个URL输入
-    processUrls([form.value.target])
-  } else {
-    // 处理多文件上传
-    const promises = fileList.value.map(file => {
-      return new Promise((resolve) => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          const urls = e.target.result
-            .split('\n')
-            .map(url => url.trim())
-            .filter(url => url && url.length > 0)
-          resolve(urls)
-        }
-        reader.readAsText(file.raw)
-      })
-    })
+const startScan = async () => {
+  if (!form.value.target) {
+    ElMessage.warning('请输入目标地址')
+    return
+  }
 
-    Promise.all(promises).then(urlArrays => {
-      const allUrls = urlArrays.flat()
-      processUrls(allUrls)
-    })
+  loading.value = true
+  scanResults.value = []
+
+  try {
+    let response
+    
+    // 根据不同模块发送对应的请求
+    switch (activeModule.value) {
+      case 'host':
+        response = await axios.post('/api/host/alive', {
+          target: form.value.target,
+          mode: form.value.mode
+        })
+        
+        if (response.data.data) {
+          // 处理主机存活结果
+          scanResults.value = response.data.data.map(result => ({
+            item: result.IP,
+            details: result.Alive ? '主机在线' : '主机离线',
+            status: result.Alive ? 'online' : 'offline'
+          }))
+          
+          ElMessage.success(response.data.message || '扫描完成')
+        }
+        break
+        
+      case 'fingerprint':
+        // 保持原有的指纹识别逻辑
+        if (form.value.inputType === 'url') {
+          processUrls([form.value.target])
+        } else {
+          const promises = fileList.value.map(file => {
+            return new Promise((resolve) => {
+              const reader = new FileReader()
+              reader.onload = (e) => {
+                const urls = e.target.result
+                  .split('\n')
+                  .map(url => url.trim())
+                  .filter(url => url && url.length > 0)
+                resolve(urls)
+              }
+              reader.readAsText(file.raw)
+            })
+          })
+
+          Promise.all(promises).then(urlArrays => {
+            const allUrls = urlArrays.flat()
+            processUrls(allUrls)
+          })
+        }
+        break
+        
+      // ... 其他模块的处理逻辑 ...
+    }
+  } catch (error) {
+    console.error('扫描出错:', error)
+    ElMessage.error(error.response?.data?.message || '扫描失败，请重试')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -427,7 +503,7 @@ const processUrls = async (urls) => {
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '扫描失败，请重试')
   } finally {
-    scanning.value = false
+    loading.value = false
   }
 }
 
@@ -541,6 +617,16 @@ const handleCommonPortSelect = (value) => {
 
 const handleFileChange = (uploadFile) => {
   fileList.value.push(uploadFile)
+}
+
+// 添加分页改变处理函数
+const handlePageChange = (page) => {
+  currentPage.value = page
+}
+
+const handleSizeChange = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
 }
 </script>
 
@@ -912,6 +998,48 @@ const handleFileChange = (uploadFile) => {
 }
 
 :deep(.el-upload-list) {
+  display: none;
+}
+
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+:deep(.el-pagination) {
+  padding: 0;
+  margin: 0;
+}
+
+.result-card {
+  margin: 20px;
+}
+
+:deep(.el-card__body) {
+  padding: 20px;
+}
+
+.loading-container {
+  padding: 20px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+:deep(.el-skeleton__paragraph) {
+  padding: 0;
+}
+
+:deep(.el-skeleton__item) {
+  margin-top: 12px;
+}
+
+/* 按钮加载状态样式 */
+:deep(.el-button.is-loading) {
+  pointer-events: none;
+}
+
+:deep(.el-button.is-loading .el-icon) {
   display: none;
 }
 </style> 
