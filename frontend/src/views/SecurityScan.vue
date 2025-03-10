@@ -410,7 +410,6 @@ const startScan = async () => {
   try {
     let response
     
-    // 根据不同模块发送对应的请求
     switch (activeModule.value) {
       case 'host':
         response = await axios.post('/api/host/alive', {
@@ -427,6 +426,32 @@ const startScan = async () => {
           }))
           
           ElMessage.success(response.data.message || '扫描完成')
+        }
+        break
+        
+      case 'port':
+        // 构建端口范围
+        let portRange
+        if (form.value.portScanType === 'range') {
+          portRange = `${form.value.portStart}-${form.value.portEnd}`
+        } else {
+          portRange = form.value.specificPorts
+        }
+        
+        response = await axios.post('/api/port/scan', {
+          target: form.value.target,
+          portRange: portRange
+        })
+        
+        if (response.data.data) {
+          // 处理端口扫描结果
+          scanResults.value = response.data.data.ports.map(port => ({
+            item: `端口 ${port.port}`,
+            details: `服务: ${port.service || '未知'}`,
+            status: 'open'
+          }))
+          
+          ElMessage.success(`扫描完成，发现 ${response.data.data.portCount} 个开放端口`)
         }
         break
         
@@ -460,7 +485,7 @@ const startScan = async () => {
     }
   } catch (error) {
     console.error('扫描出错:', error)
-    ElMessage.error(error.response?.data?.message || '扫描失败，请重试')
+    ElMessage.error(error.response?.data?.error || '扫描失败，请重试')
   } finally {
     loading.value = false
   }

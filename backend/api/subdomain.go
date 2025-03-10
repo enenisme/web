@@ -1,8 +1,11 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
+	"github.com/enenisme/subfinder"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +19,8 @@ func NewSubdomainHandler() *SubdomainHandler {
 
 func (h *SubdomainHandler) HandleSubdomainScan(c *gin.Context) {
 	var request struct {
-		Domain string `json:"domain" binding:"required"`
+		Domain     string `json:"domain" binding:"required"`
+		DomainFile string `json:"domain_file" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -26,24 +30,24 @@ func (h *SubdomainHandler) HandleSubdomainScan(c *gin.Context) {
 		return
 	}
 
-	results := h.processSubdomainScan(request.Domain)
+	results := h.processSubdomainScan(request.Domain, request.DomainFile)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "扫描完成",
 		"data":    results,
 	})
 }
 
-func (h *SubdomainHandler) processSubdomainScan(domain string) map[string]interface{} {
+func (h *SubdomainHandler) processSubdomainScan(domain string, domainFile string) map[string]interface{} {
 	// TODO: 实现具体的子域名扫描逻辑
-	result := map[string]interface{}{
-		"domain": domain,
-		"subdomains": []map[string]interface{}{
-			{
-				"subdomain": "www." + domain,
-				"ip":        "192.168.1.1",
-				"status":    "active",
-			},
-		},
+	sf := subfinder.NewSubfinder(domain, domainFile)
+	if err := sf.Run(); err != nil {
+		fmt.Println("subfinder run error: ", err)
 	}
-	return result
+	jsonData, err := json.Marshal(sf.Subdomains)
+	if err != nil {
+		fmt.Println("json marshal error: ", err)
+	}
+	fmt.Println("subdomains: ", string(jsonData))
+
+	return nil
 }

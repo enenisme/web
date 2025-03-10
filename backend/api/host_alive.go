@@ -3,17 +3,20 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"time"
 
-	"github.com/enenisme/hostalive"
+	"github.com/enenisme/host_alive/scanner"
 	"github.com/gin-gonic/gin"
 )
 
 type HostAliveHandler struct {
-	// 可以添加依赖服务
+	scanner *scanner.HostScanner
 }
 
 func NewHostAliveHandler() *HostAliveHandler {
-	return &HostAliveHandler{}
+	return &HostAliveHandler{
+		scanner: scanner.NewHostScanner(3*time.Second, 100),
+	}
 }
 
 func (h *HostAliveHandler) HandleHostAliveCheck(c *gin.Context) {
@@ -42,7 +45,6 @@ func (h *HostAliveHandler) HandleHostAliveCheck(c *gin.Context) {
 	})
 }
 
-func (h *HostAliveHandler) processHostAliveCheck(targets string) ([]hostalive.ScanResult, error) {
-	ha := hostalive.NewHostAlive(targets, false, 3, 100)
-	return ha.HostAlive()
+func (h *HostAliveHandler) processHostAliveCheck(targets string) ([]scanner.ScanResult, error) {
+	return h.scanner.Scan(targets)
 }

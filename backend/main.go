@@ -25,8 +25,8 @@ func main() {
 	// 优雅关闭
 	go func() {
 		// 启动服务器
-		log.Println("Server starting on :8888...")
-		if err := r.Run(":8888"); err != nil {
+		log.Println("Server starting on :8889...")
+		if err := r.Run(":8889"); err != nil {
 			log.Fatal("Server failed to start:", err)
 		}
 	}()
