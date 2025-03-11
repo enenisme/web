@@ -2,11 +2,23 @@ package routes
 
 import (
 	"backend/api"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRoutes(r *gin.Engine) {
+	// 添加 CORS 中间件
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:8082"}, // 允许前端域名访问
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
 	// 初始化所有 handlers
 	fingerprintHandler := api.NewFingerprintHandler()
 	hostAliveHandler := api.NewHostAliveHandler()

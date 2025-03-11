@@ -290,6 +290,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
+import request from '../utils/request'
 import { 
   Monitor, 
   Connection, 
@@ -303,7 +304,6 @@ import {
   RefreshRight,
   Search
 } from '@element-plus/icons-vue'
-import axios from 'axios'
 
 const router = useRouter()
 const activeModule = ref('host')
@@ -412,7 +412,7 @@ const startScan = async () => {
     
     switch (activeModule.value) {
       case 'host':
-        response = await axios.post('/api/host/alive', {
+        response = await request.post('/host/alive', {
           target: form.value.target,
           mode: form.value.mode
         })
@@ -438,7 +438,7 @@ const startScan = async () => {
           portRange = form.value.specificPorts
         }
         
-        response = await axios.post('/api/port/scan', {
+        response = await request.post('/port/scan', {
           target: form.value.target,
           portRange: portRange
         })
@@ -481,6 +481,25 @@ const startScan = async () => {
         }
         break
         
+        case 'subdomain':
+        response = await request.post('/subdomain/scan', {
+          domain: form.value.target,
+          mode: form.value.mode
+        })
+        
+        if (response.data.data) {
+          // 处理子域名扫描结果
+          scanResults.value = response.data.data.map(subdomain => ({
+            item: subdomain.domain,
+            details: subdomain.ip || '未解析',
+            status: subdomain.status || 'found'
+          }))
+          
+          ElMessage.success(`扫描完成，发现 ${scanResults.value.length} 个子域名`)
+        }
+        break
+        
+      // ... 其他 case ...
       // ... 其他模块的处理逻辑 ...
     }
   } catch (error) {
@@ -509,7 +528,7 @@ const processUrls = async (urls) => {
     }
 
     // 发送请求到后端
-    const response = await axios.post('/api/fingerprint/scan', formData, {
+    const response = await request.post('/fingerprint/scan', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
