@@ -20,6 +20,8 @@ github.com/enenisme/definger v0.0.0-20250212082013-b8fe7e885498 h1:RSxHzBQO6bLzs
 github.com/enenisme/definger v0.0.0-20250212082013-b8fe7e885498/go.mod h1:4k5ipLN+xMpL5uxHhfDBGuMgGFwExiX+7SJ5a8e9RQU=
 github.com/enenisme/host_alive v0.0.0-20250303045855-3d03175fe3f8 h1:aUsNbaLYhuNjkpgbk7mbP5FkPCcwqqZA2PUXBBWFGis=
 github.com/enenisme/host_alive v0.0.0-20250303045855-3d03175fe3f8/go.mod h1:5/iZZssP/w9cFbqGAY0IeXuC9PgtQWIu5NeRpZ8XbTM=
+github.com/enenisme/poc_scan v0.0.0-20250317104122-0701365ac19d h1:Xv1ssNb2JMReXxGuWNwFK8REDxf0UhBcYbzG4a00K08=
+github.com/enenisme/poc_scan v0.0.0-20250317104122-0701365ac19d/go.mod h1:Yed7oNc1JYgrWEnHdjYs/PUqFiAiwO8OIgfEktJG4MI=
 github.com/enenisme/port_scan v0.0.0-20250303015052-2c8b981bb4e5 h1:JkaKkkafeVDKk/qICVszwW9woCSJu8CjtD5iq6RWafc=
 github.com/enenisme/port_scan v0.0.0-20250303015052-2c8b981bb4e5/go.mod h1:IIK8Y36VDx2hCua7Jzd1QzxlmwW8uJuwFlzcaT2FiLg=
 github.com/enenisme/subfinder v0.0.0-20250305102839-322ccc159bfe h1:2CJbeVkv4Eve5Pxt+/53HqbPLVQIpCfr4URrEMXeaIU=
@@ -159,6 +161,8 @@ google.golang.org/protobuf v1.36.5/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojt
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
+gopkg.in/yaml.v2 v2.4.0 h1:D8xgwECY7CYvx+Y2n4sBz93Jn9JRvxdiyyo8CTfuKaY=
+gopkg.in/yaml.v2 v2.4.0/go.mod h1:RDklbk79AGWmwhnvt/jBztapEOGDOx6ZbXqjP6csGnQ=
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=

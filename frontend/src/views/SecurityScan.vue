@@ -481,7 +481,7 @@ const startScan = async () => {
         }
         break
         
-        case 'subdomain':
+      case 'subdomain':
         response = await request.post('/subdomain/scan', {
           domain: form.value.target,
           mode: form.value.mode
@@ -496,6 +496,23 @@ const startScan = async () => {
           }))
           
           ElMessage.success(`扫描完成，发现 ${scanResults.value.length} 个子域名`)
+        }
+        break
+      
+      case 'vulnerability':
+        response = await request.post('/vulnerability/scan', {
+          target: form.value.target
+        })
+
+        if (response.data.data) {
+          // 处理漏洞扫描结果
+          scanResults.value = response.data.data.map(vuln => ({
+            item: vuln.VulnName,
+            details: vuln.Info,
+            status: 'vulnerable'
+          }))
+
+          ElMessage.success(`扫描完成，发现 ${scanResults.value.length} 个漏洞`)
         }
         break
         
