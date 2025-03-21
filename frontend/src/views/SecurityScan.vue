@@ -160,22 +160,6 @@
                 </el-form-item>
               </template>
 
-              <!-- 扫描模式 - 只在非指纹识别模块显示 -->
-              <el-form-item v-if="activeModule !== 'fingerprint'" label="扫描模式">
-                <el-radio-group v-model="form.mode">
-                  <el-radio label="fast">快速模式</el-radio>
-                  <el-radio label="normal">标准模式</el-radio>
-                  <el-radio label="deep">深度模式</el-radio>
-                </el-radio-group>
-              </el-form-item>
-
-              <el-form-item label="高级选项">
-                <el-checkbox-group v-model="form.options">
-                  <el-checkbox label="saveResult">保存结果</el-checkbox>
-                  <el-checkbox label="notification">扫描完成通知</el-checkbox>
-                </el-checkbox-group>
-              </el-form-item>
-
               <el-form-item class="form-actions">
                 <el-button 
                   type="primary" 
@@ -369,16 +353,17 @@ const total = computed(() => scanResults.value.length)
 
 const form = ref({
   target: '',
-  mode: 'normal',
-  options: [],
   portScanType: 'range',
   portStart: 1,
   portEnd: 1000,
   specificPorts: '',
   commonPort: '',
-  inputType: 'url',
-  multipleTargets: '',
-  fileUrls: []
+  // 如果是指纹识别模块，重置相关字段
+  ...(activeModule.value === 'fingerprint' ? {
+    inputType: 'url',
+    multipleTargets: '',
+    fileUrls: []
+  } : {})
 })
 
 // 添加 loading 状态变量
@@ -450,8 +435,7 @@ const startScan = async () => {
     switch (activeModule.value) {
       case 'host':
         response = await request.post('/host/alive', {
-          target: form.value.target,
-          mode: form.value.mode
+          target: form.value.target
         })
         
         if (response.data.data) {
@@ -520,8 +504,7 @@ const startScan = async () => {
         
       case 'subdomain':
         response = await request.post('/subdomain/scan', {
-          domain: form.value.target,
-          mode: form.value.mode
+          domain: form.value.target
         })
         
         if (response.data.data) {
@@ -608,9 +591,6 @@ const processUrls = async (urls) => {
 const resetForm = () => {
   form.value = {
     target: '',
-    // 只在非指纹识别模块时设置 mode
-    ...(activeModule.value !== 'fingerprint' && { mode: 'normal' }),
-    options: [],
     portScanType: 'range',
     portStart: 1,
     portEnd: 1000,
