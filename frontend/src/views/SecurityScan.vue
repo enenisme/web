@@ -251,6 +251,7 @@
                   v-model="searchQuery"
                   placeholder="搜索历史记录"
                   style="width: 200px"
+                  clearable
                 >
                   <template #prefix>
                     <el-icon><Search /></el-icon>
@@ -263,37 +264,61 @@
               <el-skeleton :rows="5" animated />
             </div>
             
-            <el-table v-else :data="historyData" style="width: 100%">
-              <el-table-column prop="date" label="日期" width="180" />
-              <el-table-column prop="type" label="扫描类型" width="160" />
-              <el-table-column prop="target" label="目标" width="250"/>
-              <el-table-column label="结果" >
-                <template #default="{ row }">
-                  <el-tooltip 
-                    :content="getResultSummary(row)" 
-                    placement="top" 
-                    :show-after="500"
-                  >
-                    <div class="result-summary">{{ getResultSummary(row) }}</div>
-                  </el-tooltip>
-                </template>
-              </el-table-column>
-              <el-table-column prop="status" label="状态" width="100">
-                <template #default="{ row }">
-                  <el-tag :type="getStatusType(row.status)">{{ row.status }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="150">
-                <template #default="{ row }">
-                  <el-button size="small" @click="viewDetail(row)">查看</el-button>
-                  <el-button 
-                    size="small" 
-                    type="danger" 
-                    @click="deleteRecord(row)"
-                  >删除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
+            <template v-else>
+              <el-table 
+                v-if="historyData.length" 
+                :data="historyData" 
+                style="width: 100%"
+                border
+              >
+                <el-table-column prop="date" label="日期" width="180" />
+                <el-table-column prop="type" label="扫描类型" width="160" />
+                <el-table-column prop="target" label="目标" width="250"/>
+                <el-table-column label="结果" >
+                  <template #default="{ row }">
+                    <el-tooltip 
+                      :content="getResultSummary(row)" 
+                      placement="top" 
+                      :show-after="500"
+                    >
+                      <div class="result-summary">{{ getResultSummary(row) }}</div>
+                    </el-tooltip>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="100">
+                  <template #default="{ row }">
+                    <el-tag :type="getStatusType(row.status)">{{ row.status }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="150" fixed="right">
+                  <template #default="{ row }">
+                    <el-button size="small" @click="viewDetail(row)">查看</el-button>
+                    <el-button 
+                      size="small" 
+                      type="danger" 
+                      @click="deleteRecord(row)"
+                    >删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <el-empty 
+                v-else 
+                description="暂无历史记录" 
+              />
+
+              <div class="pagination-container">
+                <el-pagination
+                  v-model:current-page="historyCurrentPage"
+                  v-model:page-size="historyPageSize"
+                  :page-sizes="[10, 20, 50, 100]"
+                  :total="historyTotal"
+                  layout="total, sizes, prev, pager, next, jumper"
+                  @size-change="handleHistorySizeChange"
+                  @current-change="handleHistoryPageChange"
+                />
+              </div>
+            </template>
           </el-card>
         </el-main>
       </el-container>
@@ -302,7 +327,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 import request from '../utils/request'
@@ -319,6 +344,7 @@ import {
   RefreshRight,
   Search
 } from '@element-plus/icons-vue'
+import { debounce } from 'lodash'
 
 const router = useRouter()
 const activeModule = ref('host')
@@ -358,23 +384,11 @@ const form = ref({
 // 添加 loading 状态变量
 const loading = ref(false)
 
-// 模拟历史数据
-const historyData = ref([
-  {
-    date: '2024-01-20 10:30:00',
-    type: '端口扫描',
-    target: '192.168.1.1',
-    status: '完成'
-  },
-  {
-    date: '2024-01-19 15:45:00',
-    type: '漏洞检测',
-    target: 'example.com',
-    status: '完成'
-  }
-])
-
-// 添加历史数据加载状态
+// 修改历史数据相关的响应式变量
+const historyData = ref([])
+const historyTotal = ref(0)
+const historyCurrentPage = ref(1)
+const historyPageSize = ref(10)
 const historyLoading = ref(false)
 
 const getCurrentModuleTitle = computed(() => {
@@ -816,13 +830,23 @@ const handleSizeChange = (size) => {
   currentPage.value = 1
 }
 
-// 添加加载历史数据的方法
+// 修改加载历史数据的方法
 const loadHistoryData = async () => {
   historyLoading.value = true
   try {
-    const response = await request.get('/history')
+    const response = await request.get('/history', {
+      params: {
+        page: historyCurrentPage.value,
+        pageSize: historyPageSize.value,
+        search: searchQuery.value
+      }
+    })
+    
     if (response.data && response.data.data) {
-      // 根据后端返回的数据格式处理历史数据
+      // 设置总数
+      historyTotal.value = response.data.total
+      
+      // 处理历史数据
       historyData.value = response.data.data.map(item => {
         // 转换任务类型为中文显示
         const typeMap = {
@@ -862,6 +886,32 @@ const loadHistoryData = async () => {
     historyLoading.value = false
   }
 }
+
+// 添加历史记录分页处理函数
+const handleHistoryPageChange = (page) => {
+  historyCurrentPage.value = page
+  loadHistoryData()
+}
+
+const handleHistorySizeChange = (size) => {
+  historyPageSize.value = size
+  historyCurrentPage.value = 1
+  loadHistoryData()
+}
+
+// 添加搜索处理函数
+const handleSearch = () => {
+  historyCurrentPage.value = 1
+  loadHistoryData()
+}
+
+// 添加防抖处理
+const debouncedSearch = debounce(handleSearch, 300)
+
+// 监听搜索输入变化
+watch(searchQuery, () => {
+  debouncedSearch()
+})
 
 // 修改 getResultSummary 方法，确保正确解析和展示结果
 const getResultSummary = (row) => {
