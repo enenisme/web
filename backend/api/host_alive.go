@@ -1,6 +1,8 @@
 package api
 
 import (
+	"backend/global"
+	"backend/models"
 	"fmt"
 	"net/http"
 	"time"
@@ -37,8 +39,27 @@ func (h *HostAliveHandler) HandleHostAliveCheck(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "检测失败",
 		})
+
+		global.DB.Create(&models.ScanHistory{
+			TaskType:  "host_alive",
+			Target:    request.Target,
+			Status:    "failed",
+			Result:    fmt.Sprintf("%v", err),
+			StartTime: time.Now(),
+			EndTime:   time.Now(),
+		})
 		return
 	}
+
+	global.DB.Create(&models.ScanHistory{
+		TaskType:  "host_alive",
+		Target:    request.Target,
+		Status:    "completed",
+		Result:    fmt.Sprintf("%v", results),
+		StartTime: time.Now(),
+		EndTime:   time.Now(),
+	})
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "检测完成",
 		"data":    results,

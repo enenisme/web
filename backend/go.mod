@@ -5,6 +5,7 @@ go 1.23.3
 require (
 	github.com/enenisme/definger v0.0.0-20250212082013-b8fe7e885498
 	github.com/enenisme/host_alive v0.0.0-20250303045855-3d03175fe3f8
+	github.com/enenisme/poc_scan v0.0.0-20250317104122-0701365ac19d
 	github.com/enenisme/port_scan v0.0.0-20250303015052-2c8b981bb4e5
 	github.com/enenisme/subfinder v0.0.0-20250310102841-e399d00fca50
 	github.com/gin-contrib/cors v1.7.3
@@ -20,7 +21,6 @@ require (
 	github.com/bytedance/sonic/loader v0.2.3 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/corpix/uarand v0.2.0 // indirect
-	github.com/enenisme/poc_scan v0.0.0-20250317104122-0701365ac19d // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect

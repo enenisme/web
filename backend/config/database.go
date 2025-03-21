@@ -11,14 +11,13 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
-
-func InitDB() {
+func InitDB() *gorm.DB {
 	// 添加重试机制
 	var err error
+	var db *gorm.DB
 	maxRetries := 5
 	for i := 0; i < maxRetries; i++ {
-		DB, err = connectDB()
+		db, err = connectDB()
 		if err == nil {
 			break
 		}
@@ -31,15 +30,17 @@ func InitDB() {
 	}
 
 	// 自动迁移数据库表
-	err = DB.AutoMigrate(&models.ScanHistory{})
+	err = db.AutoMigrate(&models.ScanHistory{})
 	if err != nil {
 		log.Printf("Database migration failed: %v\n", err)
 	}
+
+	return db
 }
 
 func connectDB() (*gorm.DB, error) {
 	dsn := "root:root@tcp(127.0.0.1:3306)/security_scan?charset=utf8mb4&parseTime=True&loc=Local"
-	
+
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %v", err)

@@ -259,10 +259,25 @@
               </div>
             </template>
             
-            <el-table :data="historyData" style="width: 100%">
+            <div v-if="historyLoading" class="loading-container">
+              <el-skeleton :rows="5" animated />
+            </div>
+            
+            <el-table v-else :data="historyData" style="width: 100%">
               <el-table-column prop="date" label="日期" width="180" />
-              <el-table-column prop="type" label="扫描类型" width="120" />
-              <el-table-column prop="target" label="目标" />
+              <el-table-column prop="type" label="扫描类型" width="160" />
+              <el-table-column prop="target" label="目标" width="250"/>
+              <el-table-column label="结果" >
+                <template #default="{ row }">
+                  <el-tooltip 
+                    :content="getResultSummary(row)" 
+                    placement="top" 
+                    :show-after="500"
+                  >
+                    <div class="result-summary">{{ getResultSummary(row) }}</div>
+                  </el-tooltip>
+                </template>
+              </el-table-column>
               <el-table-column prop="status" label="状态" width="100">
                 <template #default="{ row }">
                   <el-tag :type="getStatusType(row.status)">{{ row.status }}</el-tag>
@@ -359,6 +374,9 @@ const historyData = ref([
   }
 ])
 
+// 添加历史数据加载状态
+const historyLoading = ref(false)
+
 const getCurrentModuleTitle = computed(() => {
   const titles = {
     host: '主机存活',
@@ -393,9 +411,14 @@ const getTargetPlaceholder = computed(() => {
   return placeholders[activeModule.value] || '请输入目标'
 })
 
-const handleModuleChange = (index) => {
+const handleModuleChange = async (index) => {
   activeModule.value = index
   resetForm()
+  
+  // 当切换到历史记录模块时，自动加载历史数据
+  if (index === 'history') {
+    await loadHistoryData()
+  }
 }
 
 const startScan = async () => {
@@ -643,18 +666,121 @@ const saveToDatabase = () => {
   ElMessage.success('保存成功')
 }
 
-const viewDetail = (row) => {
-  console.log('查看详情', row)
+const viewDetail = async (row) => {
+  try {
+    // 直接使用已有的结果数据，无需再次请求
+    const resultData = row.result
+    
+    // 根据不同的任务类型解析结果
+    switch (row.type) {
+      case '主机存活':
+        // 解析主机存活结果
+        try {
+          const matches = resultData.match(/\[(.*?)\]/)[1].split(' ')
+          scanResults.value = [{
+            item: matches[0],
+            details: matches[1] === 'true' ? '主机在线' : '主机离线',
+            status: matches[1] === 'true' ? 'online' : 'offline'
+          }]
+        } catch (e) {
+          scanResults.value = [{
+            item: row.target,
+            details: resultData,
+            status: 'unknown'
+          }]
+        }
+        break
+        
+      case '端口扫描':
+        // 解析端口扫描结果
+        try {
+          // 尝试提取端口信息
+          const portsMatch = resultData.match(/ports:\[(.*?)\]/)[1]
+          const portEntries = portsMatch.match(/map\[(.*?)\]/g)
+          
+          scanResults.value = portEntries.map(entry => {
+            const port = entry.match(/port:(\d+)/)[1]
+            const state = entry.match(/state:(\w+)/)[1]
+            const service = entry.match(/service:(.*?) /)[1] || '未知'
+            
+            return {
+              item: `端口 ${port}`,
+              details: `服务: ${service}`,
+              status: state
+            }
+          })
+        } catch (e) {
+          scanResults.value = [{
+            item: row.target,
+            details: resultData,
+            status: 'unknown'
+          }]
+        }
+        break
+        
+      case '子域名扫描':
+        // 解析子域名扫描结果
+        try {
+          const subdomainEntries = resultData.match(/\{(.*?)\}/g)
+          
+          scanResults.value = subdomainEntries.map(entry => {
+            const parts = entry.replace(/[{}]/g, '').split(' ').filter(p => p)
+            return {
+              item: parts[0] || '未知子域名',
+              details: parts.slice(1).join(' ') || '无详细信息',
+              status: 'found'
+            }
+          })
+        } catch (e) {
+          scanResults.value = [{
+            item: row.target,
+            details: resultData,
+            status: 'unknown'
+          }]
+        }
+        break
+        
+      default:
+        // 默认情况下直接显示原始结果
+        scanResults.value = [{
+          item: row.target,
+          details: resultData,
+          status: 'unknown'
+        }]
+    }
+    
+    // 切换到对应的模块
+    const moduleMap = {
+      '主机存活': 'host',
+      '端口扫描': 'port',
+      '指纹识别': 'fingerprint',
+      '子域名扫描': 'subdomain',
+      '漏洞检测': 'vulnerability'
+    }
+    
+    activeModule.value = moduleMap[row.type] || 'host'
+    ElMessage.success('加载历史记录详情成功')
+  } catch (error) {
+    console.error('解析历史记录详情失败:', error)
+    ElMessage.error('解析历史记录详情失败')
+  }
 }
 
-const deleteRecord = (row) => {
+const deleteRecord = async (row) => {
   ElMessageBox.confirm('确定要删除这条记录吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
-  }).then(() => {
-    ElMessage.success('删除成功')
-  })
+  }).then(async () => {
+    try {
+      await request.delete(`/history/${row.id}`)
+      await loadHistoryData() // 重新加载历史数据
+      ElMessage.success('删除成功')
+    } catch (error) {
+      console.error('删除历史记录失败:', error)
+      ElMessage.error(error.response?.data?.error || '删除历史记录失败')
+    }
+  }).catch(() => {})
 }
 
 // 添加处理常用端口选择的方法
@@ -688,6 +814,105 @@ const handlePageChange = (page) => {
 const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
+}
+
+// 添加加载历史数据的方法
+const loadHistoryData = async () => {
+  historyLoading.value = true
+  try {
+    const response = await request.get('/history')
+    if (response.data && response.data.data) {
+      // 根据后端返回的数据格式处理历史数据
+      historyData.value = response.data.data.map(item => {
+        // 转换任务类型为中文显示
+        const typeMap = {
+          'host_alive': '主机存活',
+          'port_scan': '端口扫描',
+          'fingerprint': '指纹识别',
+          'subdomain': '子域名扫描',
+          'vulnerability': '漏洞检测'
+        }
+        
+        // 转换状态为中文显示
+        const statusMap = {
+          'completed': '完成',
+          'running': '进行中',
+          'failed': '失败',
+          'pending': '等待中'
+        }
+        
+        // 格式化日期
+        const startTime = new Date(item.startTime)
+        const formattedDate = startTime.toLocaleString('zh-CN')
+        
+        return {
+          id: item.id,
+          date: formattedDate,
+          type: typeMap[item.taskType] || item.taskType,
+          target: item.target,
+          status: statusMap[item.status] || item.status,
+          result: item.result
+        }
+      })
+    }
+  } catch (error) {
+    console.error('加载历史数据失败:', error)
+    ElMessage.error(error.response?.data?.error || '加载历史数据失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+// 修改 getResultSummary 方法，确保正确解析和展示结果
+const getResultSummary = (row) => {
+  try {
+    switch (row.type) {
+      case '主机存活':
+        try {
+          const hostMatches = row.result.match(/\[(.*?)\]/)[1].split(' ')
+          return hostMatches[1] === 'true' ? '主机在线' : '主机离线'
+        } catch (e) {
+          return row.result
+        }
+        
+      case '端口扫描':
+        try {
+          const portCount = row.result.match(/portCount:(\d+)/)[1]
+          return `发现 ${portCount} 个开放端口`
+        } catch (e) {
+          return row.result
+        }
+        
+      case '子域名扫描':
+        try {
+          const subdomainCount = (row.result.match(/\{/g) || []).length
+          return `发现 ${subdomainCount} 个子域名`
+        } catch (e) {
+          return row.result
+        }
+        
+      case '指纹识别':
+        return row.result.length > 30 ? 
+          row.result.substring(0, 30) + '...' : 
+          row.result
+        
+      case '漏洞检测':
+        try {
+          const vulnCount = (row.result.match(/\{/g) || []).length
+          return `发现 ${vulnCount} 个漏洞`
+        } catch (e) {
+          return row.result
+        }
+        
+      default:
+        return row.result.length > 30 ? 
+          row.result.substring(0, 30) + '...' : 
+          row.result
+    }
+  } catch (error) {
+    console.error('解析结果摘要失败:', error)
+    return '无法解析结果'
+  }
 }
 </script>
 
@@ -1102,5 +1327,12 @@ const handleSizeChange = (size) => {
 
 :deep(.el-button.is-loading .el-icon) {
   display: none;
+}
+
+.result-summary {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
 }
 </style> 
