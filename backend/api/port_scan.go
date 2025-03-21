@@ -1,6 +1,8 @@
 package api
 
 import (
+	"backend/global"
+	"backend/models"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -48,6 +50,14 @@ func (h *PortScanHandler) HandlePortScan(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的端口范围: " + err.Error(),
 		})
+		global.DB.Create(&models.ScanHistory{
+			TaskType:  "host_alive",
+			Target:    request.Target,
+			Status:    "failed",
+			Result:    fmt.Sprintf("%v", err),
+			StartTime: time.Now(),
+			EndTime:   time.Now(),
+		})
 		return
 	}
 
@@ -56,6 +66,15 @@ func (h *PortScanHandler) HandlePortScan(c *gin.Context) {
 
 	// 格式化返回结果
 	formattedResults := h.formatResults(request.Target, results)
+
+	global.DB.Create(&models.ScanHistory{
+		TaskType:  "port_scan",
+		Target:    request.Target,
+		Status:    "completed",
+		Result:    fmt.Sprintf("%v", formattedResults),
+		StartTime: time.Now(),
+		EndTime:   time.Now(),
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "扫描完成",

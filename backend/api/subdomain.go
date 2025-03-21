@@ -1,8 +1,11 @@
 package api
 
 import (
+	"backend/global"
+	"backend/models"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/enenisme/subfinder"
 	"github.com/gin-gonic/gin"
@@ -26,10 +29,28 @@ func (h *SubdomainHandler) HandleSubdomainScan(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "无效的请求参数: " + err.Error(),
 		})
+		global.DB.Create(&models.ScanHistory{
+			TaskType:  "subdomain",
+			Target:    request.Domain,
+			Status:    "failed",
+			Result:    fmt.Sprintf("%v", err),
+			StartTime: time.Now(),
+			EndTime:   time.Now(),
+		})
 		return
 	}
 
 	results := h.processSubdomainScan(request.Domain, request.DomainFile)
+
+	global.DB.Create(&models.ScanHistory{
+		TaskType:  "subdomain",
+		Target:    request.Domain,
+		Status:    "completed",
+		Result:    fmt.Sprintf("%v", results),
+		StartTime: time.Now(),
+		EndTime:   time.Now(),
+	})
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "扫描完成",
 		"data":    results,

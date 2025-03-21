@@ -2,6 +2,7 @@ package main
 
 import (
 	"backend/config"
+	"backend/global"
 	"backend/routes"
 	"log"
 	"os"
@@ -14,7 +15,7 @@ import (
 
 func main() {
 	// 初始化数据库连接
-	config.InitDB()
+	global.DB = config.InitDB()
 
 	// 创建 Gin 引擎实例
 	r := gin.Default()

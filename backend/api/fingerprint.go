@@ -1,11 +1,14 @@
 package api
 
 import (
+	"backend/global"
+	"backend/models"
 	"bufio"
 	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/enenisme/definger"
 	"github.com/gin-gonic/gin"
@@ -83,17 +86,38 @@ func (h *FingerprintHandler) HandleFingerprintScan(c *gin.Context) {
 		})
 		return
 	}
+	var target string
+	for i := range targets {
+		target += fmt.Sprintf("%v, ", targets[i])
+	}
 
 	// 验证是否有目标URL
 	if len(targets) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "未提供有效的目标URL",
 		})
+		global.DB.Create(&models.ScanHistory{
+			TaskType:  "fingerprint",
+			Target:    target,
+			Status:    "failed",
+			Result:    fmt.Sprintf("%v", "未提供有效的目标URL"),
+			StartTime: time.Now(),
+			EndTime:   time.Now(),
+		})
 		return
 	}
 
 	// TODO: 处理指纹识别逻辑
 	results := h.processFingerprintScan(targets)
+
+	global.DB.Create(&models.ScanHistory{
+		TaskType:  "fingerprint",
+		Target:    target,
+		Status:    "completed",
+		Result:    fmt.Sprintf("%v", results),
+		StartTime: time.Now(),
+		EndTime:   time.Now(),
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "扫描完成",

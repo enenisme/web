@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"backend/config"
+	"backend/global"
 	"backend/models"
 
 	"github.com/gin-gonic/gin"
@@ -19,7 +19,7 @@ type ScanHistoryHandler struct {
 
 func NewScanHistoryHandler() *ScanHistoryHandler {
 	return &ScanHistoryHandler{
-		db: config.DB,
+		db: global.DB,
 	}
 }
 
