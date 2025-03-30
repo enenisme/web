@@ -76,7 +76,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { User, Lock, Key } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 
 const router = useRouter()
 const loginFormRef = ref(null)
@@ -162,11 +162,103 @@ onMounted(() => {
   generateCaptcha()
 })
 
+// 添加 WAF 检测函数
+const checkSQLInjection = (str) => {
+  const sqlPatterns = [
+    'and\\s+', 'or\\s+', 'from\\s+', 'execute\\s+', 'update\\s+', 
+    'count\\s*\\(', 'chr\\s*\\(', 'mid\\s*\\(', 'char\\s*\\(', 
+    'union\\s+', 'select\\s+', 'delete\\s+', 'insert\\s+', 
+    'limit\\s+', 'concat\\s*\\(', '\\\\', '&&', '\\|\\|',
+    "'", '%', '_'
+  ]
+  
+  const pattern = new RegExp(sqlPatterns.join('|'), 'i')
+  return pattern.test(str)
+}
+
+const checkXSSAttack = (str) => {
+  const xssPatterns = [
+    'script', 'alert', 'onclick', 'function', 'get', 'post',
+    'document', 'cookie', '<', '>', 'onerror', 'onload',
+    'javascript:', 'vbscript:', 'data:', 'eval\\s*\\('
+  ]
+  
+  const pattern = new RegExp(xssPatterns.join('|'), 'i')
+  return pattern.test(str)
+}
+
+const sanitizeInput = (str) => {
+  // SQL注入防护
+  let sanitized = str
+    .replace(/and\s+/gi, 'sqlwaf')
+    .replace(/or\s+/gi, 'sqlwaf')
+    .replace(/from\s+/gi, 'sqlwaf')
+    .replace(/execute\s+/gi, 'sqlwaf')
+    .replace(/update\s+/gi, 'sqlwaf')
+    .replace(/count/gi, 'sqlwaf')
+    .replace(/chr/gi, 'sqlwaf')
+    .replace(/mid/gi, 'sqlwaf')
+    .replace(/char/gi, 'sqlwaf')
+    .replace(/union\s+/gi, 'sqlwaf')
+    .replace(/select\s+/gi, 'sqlwaf')
+    .replace(/delete\s+/gi, 'sqlwaf')
+    .replace(/insert\s+/gi, 'sqlwaf')
+    .replace(/limit\s+/gi, 'sqlwaf')
+    .replace(/concat/gi, 'sqlwaf')
+    .replace(/\\/g, '\\\\')
+    .replace(/&&/g, '')
+    .replace(/\|\|/g, '')
+    .replace(/'/g, '')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_')
+
+  // XSS防护
+  sanitized = sanitized
+    .replace(/script/gi, 'jswaf')
+    .replace(/alert/gi, 'jswaf')
+    .replace(/onclick/gi, 'jswaf')
+    .replace(/function/gi, 'jswaf')
+    .replace(/get/gi, 'jswaf')
+    .replace(/post/gi, 'jswaf')
+    .replace(/document/gi, 'jswaf')
+    .replace(/cookie/gi, 'jswaf')
+    .replace(/</g, 'jswaf')
+    .replace(/>/g, 'jswaf')
+
+  return sanitized
+}
+
 const handleLogin = () => {
   if (!loginFormRef.value) return
   
   loginFormRef.value.validate((valid) => {
     if (valid) {
+      // 检查SQL注入
+      if (checkSQLInjection(loginForm.username) || checkSQLInjection(loginForm.password)) {
+        ElNotification({
+          title: '安全警告',
+          message: '检测到疑似SQL注入攻击，已进行防护处理',
+          type: 'warning',
+          duration: 3000
+        })
+        loginForm.username = sanitizeInput(loginForm.username)
+        loginForm.password = sanitizeInput(loginForm.password)
+        return
+      }
+
+      // 检查XSS攻击
+      if (checkXSSAttack(loginForm.username) || checkXSSAttack(loginForm.password)) {
+        ElNotification({
+          title: '安全警告',
+          message: '检测到疑似XSS攻击，已进行防护处理',
+          type: 'warning',
+          duration: 3000
+        })
+        loginForm.username = sanitizeInput(loginForm.username)
+        loginForm.password = sanitizeInput(loginForm.password)
+        return
+      }
+
       loading.value = true
       
       if (loginForm.captcha.toLowerCase() !== captchaText.value.toLowerCase()) {
