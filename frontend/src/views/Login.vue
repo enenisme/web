@@ -28,12 +28,28 @@
             v-model="loginForm.password"
             type="password"
             placeholder="密码"
-            @keyup.enter="handleLogin"
           >
             <template #prefix>
               <el-icon><Lock /></el-icon>
             </template>
           </el-input>
+        </el-form-item>
+
+        <el-form-item prop="captcha">
+          <div class="captcha-container">
+            <el-input
+              v-model="loginForm.captcha"
+              placeholder="验证码"
+              @keyup.enter="handleLogin"
+            >
+              <template #prefix>
+                <el-icon><Key /></el-icon>
+              </template>
+            </el-input>
+            <div class="captcha-image" @click="refreshCaptcha">
+              <canvas ref="captchaCanvas" width="120" height="40"></canvas>
+            </div>
+          </div>
         </el-form-item>
         
         <el-form-item class="remember-me">
@@ -57,8 +73,8 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { User, Lock } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue'
+import { User, Lock, Key } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
@@ -66,10 +82,14 @@ const router = useRouter()
 const loginFormRef = ref(null)
 const loading = ref(false)
 
+const captchaCanvas = ref(null)
+const captchaText = ref('')
+
 const loginForm = reactive({
   username: '',
   password: '',
-  remember: false
+  remember: false,
+  captcha: ''
 })
 
 const loginRules = {
@@ -80,8 +100,67 @@ const loginRules = {
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, max: 20, message: '长度在 6 到 20 个字符', trigger: 'blur' }
+  ],
+  captcha: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { min: 4, max: 4, message: '验证码长度为4位', trigger: 'blur' }
   ]
 }
+
+const generateCaptcha = () => {
+  const canvas = captchaCanvas.value
+  const ctx = canvas.getContext('2d')
+  
+  ctx.fillStyle = '#f5f5f5'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  
+  const digits = '0123456789'
+  let code = ''
+  for (let i = 0; i < 4; i++) {
+    code += digits[Math.floor(Math.random() * digits.length)]
+  }
+  captchaText.value = code
+  
+  ctx.fillStyle = '#333'
+  ctx.font = '24px Arial'
+  ctx.textBaseline = 'middle'
+  
+  for (let i = 0; i < code.length; i++) {
+    const x = 20 + i * 25 + Math.random() * 5
+    const y = 20 + Math.random() * 5
+    const rotate = (Math.random() - 0.5) * 0.3
+    
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(rotate)
+    ctx.fillText(code[i], 0, 0)
+    ctx.restore()
+  }
+  
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath()
+    ctx.strokeStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},0.5)`
+    ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height)
+    ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height)
+    ctx.stroke()
+  }
+  
+  for (let i = 0; i < 50; i++) {
+    ctx.fillStyle = `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},0.5)`
+    ctx.beginPath()
+    ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 1, 0, 2 * Math.PI)
+    ctx.fill()
+  }
+}
+
+const refreshCaptcha = () => {
+  generateCaptcha()
+  loginForm.captcha = ''
+}
+
+onMounted(() => {
+  generateCaptcha()
+})
 
 const handleLogin = () => {
   if (!loginFormRef.value) return
@@ -89,17 +168,23 @@ const handleLogin = () => {
   loginFormRef.value.validate((valid) => {
     if (valid) {
       loading.value = true
-      // 简单的用户名密码验证
+      
+      if (loginForm.captcha.toLowerCase() !== captchaText.value.toLowerCase()) {
+        ElMessage.error('验证码错误')
+        refreshCaptcha()
+        loading.value = false
+        return
+      }
+      
       if (loginForm.username === 'admin' && loginForm.password === '123456') {
         localStorage.setItem('token', 'demo-token')
         router.push('/')
         ElMessage.success('登录成功')
       } else {
         ElMessage.error('用户名或密码错误')
+        refreshCaptcha()
       }
       loading.value = false
-    } else {
-      return false
     }
   })
 }
@@ -191,5 +276,26 @@ const handleLogin = () => {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
   transition: all 0.3s ease;
+}
+
+.captcha-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.captcha-image {
+  cursor: pointer;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.captcha-image canvas {
+  display: block;
+}
+
+:deep(.el-input) {
+  flex: 1;
 }
 </style> 
