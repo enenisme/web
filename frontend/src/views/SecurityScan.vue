@@ -45,7 +45,7 @@
               <el-dropdown @command="handleCommand">
                 <span class="user-dropdown">
                   <el-icon><User /></el-icon>
-                  管理员
+                  {{ userInfo.name }}
                   <el-icon><CaretBottom /></el-icon>
                 </span>
                 <template #dropdown>
@@ -73,7 +73,7 @@
                 <template v-if="activeModule === 'fingerprint'">
                   <el-radio-group v-model="form.inputType" class="input-type-group">
                     <el-radio label="url">URL输入</el-radio>
-                    <el-radio label="file">文件上传</el-radio>
+                    <!-- <el-radio label="file">文件上传</el-radio> -->
                   </el-radio-group>
 
                   <div class="target-input-container">
@@ -311,7 +311,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 import request from '../utils/request'
@@ -336,6 +336,12 @@ const scanning = ref(false)
 const scanResults = ref([])
 const searchQuery = ref('')
 const fileList = ref([])
+// 添加用户信息状态
+const userInfo = ref({
+  username: '',
+  name: '管理员',
+  role: ''
+})
 
 // 添加分页相关的响应式变量
 const currentPage = ref(1)
@@ -375,6 +381,10 @@ const historyTotal = ref(0)
 const historyCurrentPage = ref(1)
 const historyPageSize = ref(10)
 const historyLoading = ref(false)
+// 添加一个用于缓存所有历史记录的变量
+const allHistoryData = ref([])
+// 添加一个用于记录是否已加载所有历史记录的变量
+const historyAllLoaded = ref(false)
 
 const getCurrentModuleTitle = computed(() => {
   const titles = {
@@ -466,11 +476,19 @@ const startScan = async () => {
         
         if (response.data.data) {
           // 处理端口扫描结果
-          scanResults.value = response.data.data.ports.map(port => ({
-            item: `端口 ${port.port}`,
-            details: `服务: ${port.service || '未知'}`,
-            status: 'open'
-          }))
+          scanResults.value = response.data.data.ports.map(port => {
+            // 如果服务未知但端口是常见端口，使用预定义的服务
+            let service = port.service || ''
+            if ((!service || service === '') && commonPortServices[port.port]) {
+              service = commonPortServices[port.port]
+            }
+            
+            return {
+              item: `端口 ${port.port}`,
+              details: `服务: ${service || '未知'}`,
+              status: 'open'
+            }
+          })
           
           ElMessage.success(`扫描完成，发现 ${response.data.data.portCount} 个开放端口`)
         }
@@ -639,6 +657,7 @@ const handleCommand = (command) => {
         }
       ).then(() => {
         localStorage.removeItem('token')
+        localStorage.removeItem('user')
         router.push('/login')
         ElMessage.success('已成功退出登录')
       }).catch(() => {})
@@ -668,15 +687,20 @@ const viewDetail = async (row) => {
     // 根据不同的任务类型解析结果
     switch (row.type) {
       case '主机存活':
-        // 解析主机存活结果
+        // 改进解析主机存活结果的方法
         try {
-          const matches = resultData.match(/\[(.*?)\]/)[1].split(' ')
+          const hostMatches = resultData.match(/\[(.*?)\]/)[1].trim()
+          const hostInfoParts = hostMatches.match(/\{(.*?)\}/)[1].split(' ')
+          const hostIP = hostInfoParts[0]
+          const isAlive = hostInfoParts[1] === 'true'
+          
           scanResults.value = [{
-            item: matches[0],
-            details: matches[1] === 'true' ? '主机在线' : '主机离线',
-            status: matches[1] === 'true' ? 'online' : 'offline'
+            item: hostIP,
+            details: isAlive ? '主机存活' : '主机不存活',
+            status: isAlive ? 'online' : 'offline'
           }]
         } catch (e) {
+          console.error('解析主机存活结果失败:', e)
           scanResults.value = [{
             item: row.target,
             details: resultData,
@@ -686,24 +710,47 @@ const viewDetail = async (row) => {
         break
         
       case '端口扫描':
-        // 解析端口扫描结果
+        // 改进解析端口扫描结果的方法
         try {
           // 尝试提取端口信息
+          const hostMatch = resultData.match(/host:(.*?) /)[1]
           const portsMatch = resultData.match(/ports:\[(.*?)\]/)[1]
           const portEntries = portsMatch.match(/map\[(.*?)\]/g)
           
-          scanResults.value = portEntries.map(entry => {
-            const port = entry.match(/port:(\d+)/)[1]
-            const state = entry.match(/state:(\w+)/)[1]
-            const service = entry.match(/service:(.*?) /)[1] || '未知'
-            
-            return {
-              item: `端口 ${port}`,
-              details: `服务: ${service}`,
-              status: state
-            }
-          })
+          if (portEntries) {
+            scanResults.value = portEntries.map(entry => {
+              // 尝试匹配端口号
+              const portMatch = entry.match(/port:(\d+)/)
+              const port = portMatch ? portMatch[1] : '未知'
+              
+              // 尝试匹配状态
+              const stateMatch = entry.match(/state:(\w+)/)
+              const state = stateMatch ? stateMatch[1] : '未知'
+              
+              // 尝试匹配服务
+              const serviceMatch = entry.match(/service:(.*?)(\s|$)/)
+              let service = serviceMatch && serviceMatch[1] ? serviceMatch[1].trim() : ''
+              
+              // 如果服务未知但端口是常见端口，使用预定义的服务
+              if ((!service || service === '') && commonPortServices[port]) {
+                service = commonPortServices[port]
+              }
+              
+              return {
+                item: `端口 ${port}`,
+                details: `服务: ${service || '未知'}`,
+                status: state
+              }
+            })
+          } else {
+            scanResults.value = [{
+              item: hostMatch || row.target,
+              details: "未发现开放端口",
+              status: "closed"
+            }]
+          }
         } catch (e) {
+          console.error('解析端口扫描结果失败:', e, resultData)
           scanResults.value = [{
             item: row.target,
             details: resultData,
@@ -768,7 +815,16 @@ const deleteRecord = async (row) => {
   }).then(async () => {
     try {
       await request.delete(`/history/${row.id}`)
-      await loadHistoryData() // 重新加载历史数据
+      
+      // 从本地缓存中移除已删除的记录
+      const index = allHistoryData.value.findIndex(item => item.id === row.id)
+      if (index !== -1) {
+        allHistoryData.value.splice(index, 1)
+      }
+      
+      // 重新过滤和分页数据
+      loadHistoryData()
+      
       ElMessage.success('删除成功')
     } catch (error) {
       console.error('删除历史记录失败:', error)
@@ -810,55 +866,84 @@ const handleSizeChange = (size) => {
   currentPage.value = 1
 }
 
-// 修改加载历史数据的方法
+// 修改加载历史数据的方法，首次加载所有数据并缓存
 const loadHistoryData = async () => {
   historyLoading.value = true
+  
   try {
-    const response = await request.get('/history', {
-      params: {
-        page: historyCurrentPage.value,
-        pageSize: historyPageSize.value,
-        search: searchQuery.value
-      }
-    })
-    
-    if (response.data && response.data.data) {
-      // 设置总数
-      historyTotal.value = response.data.total
-      
-      // 处理历史数据
-      historyData.value = response.data.data.map(item => {
-        // 转换任务类型为中文显示
-        const typeMap = {
-          'host_alive': '主机存活',
-          'port_scan': '端口扫描',
-          'fingerprint': '指纹识别',
-          'subdomain': '子域名扫描',
-          'vulnerability': '漏洞检测'
-        }
-        
-        // 转换状态为中文显示
-        const statusMap = {
-          'completed': '完成',
-          'running': '进行中',
-          'failed': '失败',
-          'pending': '等待中'
-        }
-        
-        // 格式化日期
-        const startTime = new Date(item.startTime)
-        const formattedDate = startTime.toLocaleString('zh-CN')
-        
-        return {
-          id: item.id,
-          date: formattedDate,
-          type: typeMap[item.taskType] || item.taskType,
-          target: item.target,
-          status: statusMap[item.status] || item.status,
-          result: item.result
+    // 如果还没有加载过所有数据，则请求所有数据
+    if (!historyAllLoaded.value) {
+      const response = await request.get('/history', {
+        params: {
+          // 设置一个足够大的pageSize，一次性获取所有数据
+          page: 1,
+          pageSize: 1000, // 假设历史记录不会超过1000条
+          search: ''
         }
       })
+      
+      if (response.data && response.data.data) {
+        // 缓存所有历史数据
+        allHistoryData.value = response.data.data.map(item => {
+          // 转换任务类型为中文显示
+          const typeMap = {
+            'host_alive': '主机存活',
+            'port_scan': '端口扫描',
+            'fingerprint': '指纹识别',
+            'subdomain': '子域名扫描',
+            'vulnerability': '漏洞检测'
+          }
+          
+          // 转换状态为中文显示
+          const statusMap = {
+            'completed': '完成',
+            'running': '进行中',
+            'failed': '失败',
+            'pending': '等待中'
+          }
+          
+          // 格式化日期
+          const startTime = new Date(item.startTime)
+          const formattedDate = startTime.toLocaleString('zh-CN')
+          
+          return {
+            id: item.id,
+            date: formattedDate,
+            type: typeMap[item.taskType] || item.taskType,
+            target: item.target,
+            status: statusMap[item.status] || item.status,
+            result: item.result,
+            rawData: item // 保存原始数据，以便查看详情时使用
+          }
+        })
+        
+        historyAllLoaded.value = true
+      }
     }
+    
+    // 在前端进行搜索和分页
+    let filteredData = [...allHistoryData.value]
+    
+    // 如果有搜索条件，在前端进行过滤
+    if (searchQuery.value) {
+      const query = searchQuery.value.toLowerCase()
+      filteredData = filteredData.filter(item => 
+        item.target.toLowerCase().includes(query) || 
+        item.type.toLowerCase().includes(query) ||
+        item.date.toLowerCase().includes(query) ||
+        item.result.toLowerCase().includes(query)
+      )
+    }
+    
+    // 设置总数
+    historyTotal.value = filteredData.length
+    
+    // 分页处理
+    const start = (historyCurrentPage.value - 1) * historyPageSize.value
+    const end = Math.min(start + historyPageSize.value, filteredData.length)
+    
+    // 设置当前页数据
+    historyData.value = filteredData.slice(start, end)
   } catch (error) {
     console.error('加载历史数据失败:', error)
     ElMessage.error(error.response?.data?.error || '加载历史数据失败')
@@ -867,21 +952,24 @@ const loadHistoryData = async () => {
   }
 }
 
-// 添加历史记录分页处理函数
+// 添加历史记录分页处理函数 - 现在只在前端处理
 const handleHistoryPageChange = (page) => {
   historyCurrentPage.value = page
+  // 不需要重新请求，直接从缓存中过滤
   loadHistoryData()
 }
 
 const handleHistorySizeChange = (size) => {
   historyPageSize.value = size
   historyCurrentPage.value = 1
+  // 不需要重新请求，直接从缓存中过滤
   loadHistoryData()
 }
 
-// 添加搜索处理函数
+// 修改搜索处理函数 - 现在只在前端处理
 const handleSearch = () => {
   historyCurrentPage.value = 1
+  // 不需要重新请求，直接从缓存中过滤
   loadHistoryData()
 }
 
@@ -899,14 +987,20 @@ const getResultSummary = (row) => {
     switch (row.type) {
       case '主机存活':
         try {
-          const hostMatches = row.result.match(/\[(.*?)\]/)[1].split(' ')
-          return hostMatches[1] === 'true' ? '主机在线' : '主机离线'
+          // 更新解析方式以适应新格式 [{192.168.3.119 true}]
+          const hostMatches = row.result.match(/\[(.*?)\]/)[1].trim()
+          const hostInfoParts = hostMatches.match(/\{(.*?)\}/)[1].split(' ')
+          const hostIP = hostInfoParts[0]
+          const isAlive = hostInfoParts[1] === 'true'
+          return isAlive ? '主机存活' : '主机不存活'
         } catch (e) {
+          console.error('解析主机存活结果失败:', e)
           return row.result
         }
         
       case '端口扫描':
         try {
+          // 改进端口扫描结果的解析
           const portCount = row.result.match(/portCount:(\d+)/)[1]
           return `发现 ${portCount} 个开放端口`
         } catch (e) {
@@ -944,6 +1038,66 @@ const getResultSummary = (row) => {
     return '无法解析结果'
   }
 }
+
+// 添加常见端口服务映射表
+const commonPortServices = {
+  '21': 'FTP',
+  '22': 'SSH',
+  '23': 'Telnet',
+  '25': 'SMTP',
+  '53': 'DNS',
+  '80': 'HTTP',
+  '110': 'POP3',
+  '115': 'SFTP',
+  '123': 'NTP',
+  '139': 'NetBIOS',
+  '143': 'IMAP',
+  '161': 'SNMP',
+  '443': 'HTTPS',
+  '445': 'SMB',
+  '465': 'SMTPS',
+  '587': 'SMTP',
+  '993': 'IMAPS',
+  '995': 'POP3S',
+  '1080': 'SOCKS',
+  '1433': 'MSSQL',
+  '1521': 'Oracle',
+  '3306': 'MySQL',
+  '3389': 'RDP',
+  '5432': 'PostgreSQL',
+  '5900': 'VNC',
+  '6379': 'Redis',
+  '8080': 'HTTP Proxy',
+  '8443': 'HTTPS Alt',
+  '27017': 'MongoDB'
+}
+
+// 根据端口获取服务名称
+const getServiceNameByPort = (port) => {
+  return commonPortServices[port] || '未知'
+}
+
+// 获取用户信息
+const fetchUserInfo = async () => {
+  try {
+    const response = await request.get('/auth/user')
+    if (response.data) {
+      userInfo.value = {
+        username: response.data.username,
+        name: response.data.name || response.data.username,
+        role: response.data.role
+      }
+    }
+  } catch (error) {
+    console.error('获取用户信息失败:', error)
+    // 认证失败会通过 request.js 中的拦截器处理重定向
+  }
+}
+
+// 在组件挂载时获取用户信息
+onMounted(() => {
+  fetchUserInfo()
+})
 </script>
 
 <style scoped>

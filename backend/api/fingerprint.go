@@ -39,7 +39,7 @@ func (h *FingerprintHandler) HandleFingerprintScan(c *gin.Context) {
 		form, err := c.MultipartForm()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "文件上传失败: " + err.Error(),
+				"error": "失败: " + err.Error(),
 			})
 			return
 		}

@@ -30,10 +30,13 @@ func InitDB() *gorm.DB {
 	}
 
 	// 自动迁移数据库表
-	err = db.AutoMigrate(&models.ScanHistory{})
+	err = db.AutoMigrate(&models.ScanHistory{}, &models.User{})
 	if err != nil {
 		log.Printf("Database migration failed: %v\n", err)
 	}
+
+	// 初始化管理员用户
+	initAdminUser(db)
 
 	return db
 }
@@ -58,4 +61,35 @@ func connectDB() (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return db, nil
+}
+
+// 初始化管理员用户
+func initAdminUser(db *gorm.DB) {
+	var count int64
+	db.Model(&models.User{}).Where("username = ?", "admin").Count(&count)
+	if count == 0 {
+		// 创建默认管理员账户
+		admin := models.User{
+			Username: "admin",
+			Password: "123456", // 初始密码
+			Name:     "管理员",
+			Email:    "admin@example.com",
+			Role:     "admin",
+		}
+
+		// 哈希密码
+		err := admin.HashPassword()
+		if err != nil {
+			log.Printf("Failed to hash admin password: %v\n", err)
+			return
+		}
+
+		// 保存到数据库
+		result := db.Create(&admin)
+		if result.Error != nil {
+			log.Printf("Failed to create admin user: %v\n", result.Error)
+		} else {
+			log.Println("Admin user created successfully")
+		}
+	}
 }

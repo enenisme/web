@@ -77,6 +77,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { User, Lock, Key } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
+import request from '../utils/request'
 
 const router = useRouter()
 const loginFormRef = ref(null)
@@ -231,7 +232,7 @@ const sanitizeInput = (str) => {
 const handleLogin = () => {
   if (!loginFormRef.value) return
   
-  loginFormRef.value.validate((valid) => {
+  loginFormRef.value.validate(async (valid) => {
     if (valid) {
       // 检查SQL注入
       if (checkSQLInjection(loginForm.username) || checkSQLInjection(loginForm.password)) {
@@ -268,15 +269,29 @@ const handleLogin = () => {
         return
       }
       
-      if (loginForm.username === 'admin' && loginForm.password === '123456') {
-        localStorage.setItem('token', 'demo-token')
+      try {
+        // 调用后端登录API
+        const response = await request.post('/auth/login', {
+          username: loginForm.username,
+          password: loginForm.password
+        })
+        
+        // 将令牌保存到本地存储
+        localStorage.setItem('token', response.data.token)
+        
+        // 将用户信息保存到本地存储（可选）
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+        
+        // 跳转到主页
         router.push('/')
         ElMessage.success('登录成功')
-      } else {
-        ElMessage.error('用户名或密码错误')
+      } catch (error) {
+        // 处理登录失败
+        ElMessage.error(error.response?.data?.error || '登录失败，请检查用户名和密码')
         refreshCaptcha()
+      } finally {
+        loading.value = false
       }
-      loading.value = false
     }
   })
 }

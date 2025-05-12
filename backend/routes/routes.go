@@ -2,6 +2,7 @@ package routes
 
 import (
 	"backend/api"
+	"backend/middleware"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -26,6 +27,7 @@ func SetupRoutes(r *gin.Engine) {
 	scanHistoryHandler := api.NewScanHistoryHandler()
 	subdomainHandler := api.NewSubdomainHandler()
 	vulnerabilityHandler := api.NewVulnerabilityHandler()
+	authHandler := api.NewAuthHandler() // 添加认证处理器
 
 	// 基础测试路由
 	r.GET("/ping", func(c *gin.Context) {
@@ -37,6 +39,18 @@ func SetupRoutes(r *gin.Engine) {
 	// API 路由组
 	apiGroup := r.Group("/api")
 	{
+		// 认证相关路由（不需要认证）
+		authGroup := apiGroup.Group("/auth")
+		{
+			authGroup.POST("/login", authHandler.Login)
+			// 获取用户信息（需要认证）
+			authGroup.GET("/user", middleware.JWTAuth(), authHandler.GetUserInfo)
+		}
+
+		// 以下路由需要JWT认证
+		// 注意：这里设置了认证，实际使用时请相应修改认证中间件
+		// 当前为了演示，暂时不添加认证中间件
+
 		// 指纹识别相关路由
 		apiGroup.POST("/fingerprint/scan", fingerprintHandler.HandleFingerprintScan)
 
