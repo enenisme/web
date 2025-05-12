@@ -690,15 +690,27 @@ const viewDetail = async (row) => {
         // 改进解析主机存活结果的方法
         try {
           const hostMatches = resultData.match(/\[(.*?)\]/)[1].trim()
-          const hostInfoParts = hostMatches.match(/\{(.*?)\}/)[1].split(' ')
-          const hostIP = hostInfoParts[0]
-          const isAlive = hostInfoParts[1] === 'true'
+          const hostEntries = hostMatches.match(/\{(.*?)\}/g)
           
-          scanResults.value = [{
-            item: hostIP,
-            details: isAlive ? '主机存活' : '主机不存活',
-            status: isAlive ? 'online' : 'offline'
-          }]
+          if (hostEntries) {
+            scanResults.value = hostEntries.map(entry => {
+              const hostInfo = entry.replace(/[{}]/g, '').split(' ')
+              const hostIP = hostInfo[0]
+              const isAlive = hostInfo[1] === 'true'
+              
+              return {
+                item: hostIP,
+                details: isAlive ? '主机存活' : '主机不存活',
+                status: isAlive ? 'online' : 'offline'
+              }
+            })
+          } else {
+            scanResults.value = [{
+              item: row.target,
+              details: resultData,
+              status: 'unknown'
+            }]
+          }
         } catch (e) {
           console.error('解析主机存活结果失败:', e)
           scanResults.value = [{
@@ -710,47 +722,53 @@ const viewDetail = async (row) => {
         break
         
       case '端口扫描':
-        // 改进解析端口扫描结果的方法
         try {
-          // 尝试提取端口信息
-          const hostMatch = resultData.match(/host:(.*?) /)[1]
-          const portsMatch = resultData.match(/ports:\[(.*?)\]/)[1]
-          const portEntries = portsMatch.match(/map\[(.*?)\]/g)
+          // 解析端口扫描结果
+          const hostMatch = resultData.match(/host:([^\s]+)/)
+          const portsMatch = resultData.match(/ports:\[(.*?)\]/)
           
-          if (portEntries) {
-            scanResults.value = portEntries.map(entry => {
-              // 尝试匹配端口号
-              const portMatch = entry.match(/port:(\d+)/)
-              const port = portMatch ? portMatch[1] : '未知'
-              
-              // 尝试匹配状态
-              const stateMatch = entry.match(/state:(\w+)/)
-              const state = stateMatch ? stateMatch[1] : '未知'
-              
-              // 尝试匹配服务
-              const serviceMatch = entry.match(/service:(.*?)(\s|$)/)
-              let service = serviceMatch && serviceMatch[1] ? serviceMatch[1].trim() : ''
-              
-              // 如果服务未知但端口是常见端口，使用预定义的服务
-              if ((!service || service === '') && commonPortServices[port]) {
-                service = commonPortServices[port]
-              }
-              
-              return {
-                item: `端口 ${port}`,
-                details: `服务: ${service || '未知'}`,
-                status: state
-              }
-            })
+          if (hostMatch && portsMatch) {
+            const host = hostMatch[1]
+            const portsStr = portsMatch[1]
+            const portEntries = portsStr.match(/map\[(.*?)\]/g)
+            
+            if (portEntries && portEntries.length > 0) {
+              scanResults.value = portEntries.map(entry => {
+                const portMatch = entry.match(/port:(\d+)/)
+                const stateMatch = entry.match(/state:(\w+)/)
+                const serviceMatch = entry.match(/service:([^\s]*)/)
+                
+                const port = portMatch ? portMatch[1] : '未知'
+                const state = stateMatch ? stateMatch[1] : '未知'
+                let service = serviceMatch && serviceMatch[1] ? serviceMatch[1].trim() : ''
+                
+                // 如果服务未知但端口是常见端口，使用预定义的服务
+                if ((!service || service === '') && commonPortServices[port]) {
+                  service = commonPortServices[port]
+                }
+                
+                return {
+                  item: `端口 ${port}`,
+                  details: `服务: ${service || '未知'}`,
+                  status: state
+                }
+              })
+            } else {
+              scanResults.value = [{
+                item: host,
+                details: "未发现开放端口",
+                status: "closed"
+              }]
+            }
           } else {
             scanResults.value = [{
-              item: hostMatch || row.target,
-              details: "未发现开放端口",
-              status: "closed"
+              item: row.target,
+              details: "无法解析端口扫描结果",
+              status: "unknown"
             }]
           }
         } catch (e) {
-          console.error('解析端口扫描结果失败:', e, resultData)
+          console.error('解析端口扫描结果失败:', e)
           scanResults.value = [{
             item: row.target,
             details: resultData,
